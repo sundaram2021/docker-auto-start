@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Test script for Docker Auto-Start CLI
+# Test script for Docker Auto-Start CLI with auto-shutdown
 
 set -e
 
@@ -14,5 +14,8 @@ go build -o docker-autostart main.go
 
 # Test basic functionality
 ./docker-autostart --help
+
+# Test auto-shutdown flag
+./docker-autostart --auto-shutdown=false --help
 
 echo "All tests passed!"

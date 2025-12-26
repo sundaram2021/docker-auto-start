@@ -61,12 +61,15 @@ go build -o docker main.go
 - ✅ Configurable timeout
 - ✅ Drop-in replacement for docker
 - ✅ Minimal overhead when Docker is running
+- ✅ Auto-shutdown after 10 minutes of inactivity
+- ✅ Smart resource management
 
 ## Options
 
 - `-v`: Verbose output
 - `-q`: Quiet mode  
 - `-timeout N`: Timeout in seconds (default: 120)
+- `-auto-shutdown`: Auto-shutdown Docker Desktop after 10 minutes of inactivity (default: true)
 
 ## Contributing
 

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -12,9 +14,20 @@ import (
 )
 
 var (
-	verbose = flag.Bool("v", false, "Verbose output")
-	quiet   = flag.Bool("q", false, "Quiet mode")
-	timeout = flag.Int("timeout", 120, "Timeout in seconds for Docker to start")
+	verbose      = flag.Bool("v", false, "Verbose output")
+	quiet        = flag.Bool("q", false, "Quiet mode")
+	timeout      = flag.Int("timeout", 120, "Timeout in seconds for Docker to start")
+	autoShutdown = flag.Bool("auto-shutdown", true, "Auto-shutdown Docker Desktop after 10 minutes of inactivity")
+)
+
+// Activity tracking
+type Activity struct {
+	LastActivity time.Time `json:"last_activity"`
+}
+
+const (
+	inactivityTimeout = 10 * time.Minute
+	activityFile      = ".docker-activity.json"
 )
 
 func main() {
@@ -27,6 +40,9 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+
+	// Update activity timestamp
+	updateActivity()
 
 	// Check if Docker Desktop is running
 	if !isDockerDesktopRunning() {
@@ -54,6 +70,16 @@ func main() {
 		}
 	} else if *verbose {
 		fmt.Println("Docker Desktop is already running")
+	}
+
+	// Check for inactivity timeout in background
+	if *autoShutdown {
+		go checkInactivityTimeout()
+	}
+
+	// Check for inactivity timeout in background
+	if *autoShutdown {
+		go checkInactivityTimeout()
 	}
 
 	// Execute the docker command with all arguments
@@ -206,6 +232,128 @@ func isDockerReady() bool {
 	}
 
 	return false
+}
+
+// updateActivity records the current time as last activity
+func updateActivity() {
+	activity := Activity{
+		LastActivity: time.Now(),
+	}
+
+	data, err := json.Marshal(activity)
+	if err != nil {
+		if *verbose {
+			fmt.Printf("Debug: Failed to marshal activity: %v\n", err)
+		}
+		return
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		if *verbose {
+			fmt.Printf("Debug: Failed to get home directory: %v\n", err)
+		}
+		return
+	}
+
+	activityPath := filepath.Join(homeDir, activityFile)
+	err = os.WriteFile(activityPath, data, 0644)
+	if err != nil {
+		if *verbose {
+			fmt.Printf("Debug: Failed to write activity file: %v\n", err)
+		}
+	}
+}
+
+// getLastActivity gets the last activity timestamp
+func getLastActivity() (time.Time, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	activityPath := filepath.Join(homeDir, activityFile)
+	data, err := os.ReadFile(activityPath)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	var activity Activity
+	err = json.Unmarshal(data, &activity)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return activity.LastActivity, nil
+}
+
+// checkInactivityTimeout monitors for inactivity and shuts down Docker Desktop
+func checkInactivityTimeout() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			lastActivity, err := getLastActivity()
+			if err != nil {
+				if *verbose {
+					fmt.Printf("Debug: Failed to get last activity: %v\n", err)
+				}
+				continue
+			}
+
+			inactiveDuration := time.Since(lastActivity)
+			if inactiveDuration >= inactivityTimeout {
+				if isDockerDesktopRunning() {
+					if !*quiet {
+						fmt.Printf("Docker Desktop inactive for %v, shutting down...\n", inactiveDuration.Round(time.Minute))
+					}
+					shutdownDockerDesktop()
+				}
+				return
+			}
+
+			if *verbose {
+				fmt.Printf("Debug: Inactive for %v, will shutdown after %v\n",
+					inactiveDuration.Round(time.Minute),
+					(inactivityTimeout - inactiveDuration).Round(time.Minute))
+			}
+		}
+	}
+}
+
+// shutdownDockerDesktop gracefully shuts down Docker Desktop
+func shutdownDockerDesktop() error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		// Try graceful shutdown first
+		cmd = exec.Command("taskkill", "/F", "/IM", "Docker Desktop.exe")
+	case "darwin":
+		cmd = exec.Command("pkill", "-f", "Docker Desktop")
+	case "linux":
+		cmd = exec.Command("sudo", "systemctl", "stop", "docker")
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+
+	if *verbose {
+		fmt.Printf("Debug: Shutting down Docker Desktop with command: %v\n", cmd.Args)
+	}
+
+	err := cmd.Run()
+	if err != nil && *verbose {
+		fmt.Printf("Debug: Shutdown command failed: %v\n", err)
+	}
+
+	// Clean up activity file
+	homeDir, _ := os.UserHomeDir()
+	activityPath := filepath.Join(homeDir, activityFile)
+	os.Remove(activityPath)
+
+	return nil
 }
 
 func executeDockerCommand(args []string) {
