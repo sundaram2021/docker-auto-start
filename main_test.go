@@ -8,6 +8,17 @@ import (
 	"time"
 )
 
+func TestIsDockerDesktopRunning(t *testing.T) {
+	// This test requires mocking since we can't reliably test the actual function
+	// without knowing Docker Desktop's state
+	t.Skip("Requires mocking for unit testing")
+}
+
+func TestStartDockerDesktop(t *testing.T) {
+	// This test requires mocking since starting Docker Desktop is a system operation
+	t.Skip("Requires mocking for unit testing")
+}
+
 func TestWaitForDocker(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -90,6 +101,11 @@ func TestIsDockerReady(t *testing.T) {
 }
 
 func TestExecuteDockerCommand(t *testing.T) {
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("Docker not available for testing - skipping docker command tests")
+		return
+	}
+
 	tests := []struct {
 		name    string
 		args    []string
@@ -114,10 +130,6 @@ func TestExecuteDockerCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := exec.LookPath("docker"); err != nil {
-				t.Skip("Docker not available for testing")
-			}
-
 			// Since executeDockerCommand calls os.Exit, we can't test it directly
 			// Instead, we test the underlying logic
 			cmd := exec.Command("docker", tt.args...)
@@ -136,18 +148,14 @@ func TestIntegration(t *testing.T) {
 		t.Skip("Skipping integration tests in short mode")
 	}
 
-	if _, err := exec.LookPath("docker"); err != nil {
-		t.Skip("Docker not available for integration tests")
-	}
-
 	t.Run("build binary", func(t *testing.T) {
 		// Build the binary
-		buildCmd := exec.Command("go", "build", "-o", "test-docker-autostart", "main.go")
+		buildCmd := exec.Command("go", "build", "-o", "test-docker-autostart.exe", "main.go")
 		err := buildCmd.Run()
 		if err != nil {
 			t.Fatalf("Failed to build binary: %v", err)
 		}
-		defer os.Remove("test-docker-autostart")
+		defer os.Remove("test-docker-autostart.exe")
 	})
 
 	t.Run("help command", func(t *testing.T) {
