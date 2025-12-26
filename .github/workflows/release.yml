@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build binaries
+      run: |
+        mkdir release
+        
+        # Windows
+        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o release/docker-autostart-windows-amd64.exe main.go
+        
+        # macOS
+        GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o release/docker-autostart-darwin-amd64 main.go
+        GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o release/docker-autostart-darwin-arm64 main.go
+        
+        # Linux
+        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o release/docker-autostart-linux-amd64 main.go
+
+    - name: Create archives
+      run: |
+        cd release
+        zip docker-autostart-windows-amd64.zip docker-autostart-windows-amd64.exe
+        tar -czf docker-autostart-darwin-amd64.tar.gz docker-autostart-darwin-amd64
+        tar -czf docker-autostart-darwin-arm64.tar.gz docker-autostart-darwin-arm64
+        tar -czf docker-autostart-linux-amd64.tar.gz docker-autostart-linux-amd64
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
