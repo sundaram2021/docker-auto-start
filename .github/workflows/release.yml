@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Release
@@ -25,7 +28,7 @@ jobs:
 
     - name: Build binaries
       run: |
-        mkdir release
+        mkdir -p release
         
         # Windows
         GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o release/docker-autostart-windows-amd64.exe main.go
@@ -45,6 +48,11 @@ jobs:
         tar -czf docker-autostart-darwin-arm64.tar.gz docker-autostart-darwin-arm64
         tar -czf docker-autostart-linux-amd64.tar.gz docker-autostart-linux-amd64
 
+    - name: Generate checksums
+      run: |
+        cd release
+        sha256sum * > checksums.txt
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -52,3 +60,32 @@ jobs:
         draft: false
         prerelease: false
         generate_release_notes: true
+        body: |
+          ## Docker Auto-Start CLI ${{ steps.version.outputs.VERSION }}
+          
+          ### Installation
+          
+          #### Windows
+          Download `docker-autostart-windows-amd64.zip` and extract `docker-autostart-windows-amd64.exe`
+          
+          #### macOS
+          - **Intel**: Download `docker-autostart-darwin-amd64.tar.gz`
+          - **Apple Silicon**: Download `docker-autostart-darwin-arm64.tar.gz`
+          
+          #### Linux
+          Download `docker-autostart-linux-amd64.tar.gz`
+          
+          ### Quick Start
+          1. Download the appropriate binary for your system
+          2. Add it to your PATH or copy it to `/usr/local/bin/docker`
+          3. Run `docker ps` - it will auto-start Docker Desktop if needed
+          
+          ### Features
+          - Automatic Docker Desktop startup
+          - Auto-shutdown after 10 minutes of inactivity
+          - Cross-platform support (Windows, macOS, Linux)
+          - Verbose and quiet modes
+          - Configurable timeout
+          - Proper exit code preservation
+          
+          Thank you for using Docker Auto-Start CLI! Please consider giving this project a star on GitHub.
