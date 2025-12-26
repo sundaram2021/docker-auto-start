@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-
 func TestWaitForDocker(t *testing.T) {
 	tests := []struct {
 		name           string
