@@ -152,7 +152,10 @@ func startDockerDesktop() error {
 		}
 
 		cmd = exec.Command(dockerPath)
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		// Try to hide window on Windows (if supported)
+		if runtime.GOOS == "windows" {
+			cmd.SysProcAttr = &syscall.SysProcAttr{}
+		}
 
 	case "darwin":
 		cmd = exec.Command("open", "-a", "Docker Desktop")

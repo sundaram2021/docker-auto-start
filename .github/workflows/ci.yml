@@ -45,8 +45,10 @@ jobs:
 
     - name: Check formatting
       run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+        # Check if gofmt finds any formatting issues
+        unformatted=$(gofmt -s -l .)
+        if [ -n "$unformatted" ]; then
           echo "Code is not properly formatted:"
-          gofmt -s -l .
+          echo "$unformatted"
           exit 1
         fi
